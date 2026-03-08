@@ -183,12 +183,43 @@ The **knowledge base** fed to Claude per request:
 ## 7. Authentication
 
 - Supabase GoTrue handles auth (email + password; magic link can be added).
-- On sign-up, a trigger or Server Action must:
-  1. Create a `tenants` row.
-  2. Create a `profiles` row linking `auth.users.id` → `tenants.id`.
-  3. Create a `subscriptions` row with `status = 'trialing'`.
-- The `profiles.tenant_id` is the single source of truth for RLS.
 - Auth session is stored in cookies managed by `@supabase/ssr`.
+- The `profiles.tenant_id` is the single source of truth for RLS.
+
+### Sign-up flow (trigger-based, atomic)
+
+The Server Action (`app/(auth)/signup/actions.ts`) calls `supabase.auth.signUp()`
+with `options.data` (user_metadata) containing:
+
+| Field | Source |
+|-------|--------|
+| `tenant_name` | Pizzeria name from the sign-up form |
+| `tenant_slug` | URL-safe slug derived server-side from `tenant_name` |
+| `full_name` | Owner's full name from the sign-up form |
+
+A PostgreSQL trigger (`supabase/migrations/0002_signup_trigger.sql`) fires
+`AFTER INSERT ON auth.users` and atomically creates:
+1. A `tenants` row (using `tenant_name` + `tenant_slug` from `raw_user_meta_data`).
+2. A `profiles` row linking the new `auth.users.id` → the new tenant.
+3. A `subscriptions` row with `status = 'trialing'` and `trial_ends_at = NOW() + 14 days`.
+
+**Why a trigger instead of a Server Action sequence?**
+The trigger runs in the same DB transaction as the `auth.users` INSERT, so it
+is impossible for a user to exist without a tenant/profile/subscription. A
+multi-step Server Action would risk partial state if a step failed mid-way.
+
+The trigger is declared `SECURITY DEFINER` (runs as the DB owner, bypassing RLS)
+because the newly-created user has no profile yet, so `auth_tenant_id()` returns
+NULL and normal RLS writes would be rejected.
+
+### Slug uniqueness
+`tenants.slug` has a `UNIQUE` constraint. If a duplicate slug is inserted the
+trigger raises a constraint violation, which Supabase surfaces as an auth error.
+The Server Action catches this and returns a friendly message to the user.
+
+### Login / logout
+- Login: `app/(auth)/login/actions.ts` → `supabase.auth.signInWithPassword()`
+- Logout: `logout()` in the same file → `supabase.auth.signOut()` + redirect to `/login`
 
 ---
 
