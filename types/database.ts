@@ -24,9 +24,9 @@ export interface Database {
     Tables: {
 
       tenants: {
-        Row: { id: string; name: string; slug: string; owner_id: string; logo_url: string | null; primary_color: string; timezone: string; currency: string; is_active: boolean; created_at: string; updated_at: string }
-        Insert: { id?: string; name: string; slug: string; owner_id: string; logo_url?: string | null; primary_color?: string; timezone?: string; currency?: string; is_active?: boolean; created_at?: string; updated_at?: string }
-        Update: { id?: string; name?: string; slug?: string; owner_id?: string; logo_url?: string | null; primary_color?: string; timezone?: string; currency?: string; is_active?: boolean; created_at?: string; updated_at?: string }
+        Row: { id: string; name: string; slug: string; owner_id: string; logo_url: string | null; primary_color: string; timezone: string; currency: string; is_active: boolean; bot_name: string | null; welcome_message: string | null; language: string; operating_hours: Json | null; away_message: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; name: string; slug: string; owner_id: string; logo_url?: string | null; primary_color?: string; timezone?: string; currency?: string; is_active?: boolean; bot_name?: string | null; welcome_message?: string | null; language?: string; operating_hours?: Json | null; away_message?: string | null; created_at?: string; updated_at?: string }
+        Update: { id?: string; name?: string; slug?: string; owner_id?: string; logo_url?: string | null; primary_color?: string; timezone?: string; currency?: string; is_active?: boolean; bot_name?: string | null; welcome_message?: string | null; language?: string; operating_hours?: Json | null; away_message?: string | null; created_at?: string; updated_at?: string }
         Relationships: []
       }
 
