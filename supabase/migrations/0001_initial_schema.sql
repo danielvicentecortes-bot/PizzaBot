@@ -3,7 +3,7 @@
 -- Multi-tenant, shared tables + Row Level Security
 -- ============================================================
 
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- uuid-ossp extension not required; gen_random_uuid() is built-in (pgcrypto)
 
 -- ─── HELPER: updated_at trigger ──────────────────────────────
 CREATE OR REPLACE FUNCTION set_updated_at()
@@ -17,7 +17,7 @@ $$;
 -- ─── TENANTS ─────────────────────────────────────────────────
 -- One row per pizzeria (B2B customer / subscriber).
 CREATE TABLE tenants (
-  id              UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   name            TEXT        NOT NULL,
   slug            TEXT        UNIQUE NOT NULL,  -- used for webhook routing: /api/webhooks/twilio?tenant=<slug>
   owner_id        UUID        NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
@@ -48,7 +48,7 @@ CREATE TRIGGER profiles_updated_at BEFORE UPDATE ON profiles
 -- ─── SUBSCRIPTIONS ───────────────────────────────────────────
 -- Stripe subscription state per tenant.
 CREATE TABLE subscriptions (
-  id                      UUID    PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                      UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id               UUID    NOT NULL UNIQUE REFERENCES tenants(id) ON DELETE CASCADE,
   stripe_customer_id      TEXT    UNIQUE,
   stripe_subscription_id  TEXT    UNIQUE,
@@ -67,7 +67,7 @@ CREATE TRIGGER subscriptions_updated_at BEFORE UPDATE ON subscriptions
 -- ─── CHANNELS ────────────────────────────────────────────────
 -- Messaging channel configuration per tenant.
 CREATE TABLE channels (
-  id          UUID    PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id          UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id   UUID    NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   type        TEXT    NOT NULL CHECK (type IN ('whatsapp','sms','telegram')),
   -- Stored as JSONB so each channel type can have different credential fields.
@@ -84,7 +84,7 @@ CREATE TRIGGER channels_updated_at BEFORE UPDATE ON channels
 
 -- ─── MENU CATEGORIES ─────────────────────────────────────────
 CREATE TABLE menu_categories (
-  id          UUID    PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id          UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id   UUID    NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   name        TEXT    NOT NULL,
   description TEXT,
@@ -98,7 +98,7 @@ CREATE TRIGGER menu_categories_updated_at BEFORE UPDATE ON menu_categories
 
 -- ─── MENU ITEMS ──────────────────────────────────────────────
 CREATE TABLE menu_items (
-  id              UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id              UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id       UUID          NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   category_id     UUID          NOT NULL REFERENCES menu_categories(id) ON DELETE CASCADE,
   name            TEXT          NOT NULL,
@@ -120,7 +120,7 @@ CREATE TRIGGER menu_items_updated_at BEFORE UPDATE ON menu_items
 -- ─── MENU OPTION GROUPS ──────────────────────────────────────
 -- Groups of options belonging to a menu item, e.g. "Size", "Extra Toppings".
 CREATE TABLE menu_option_groups (
-  id              UUID    PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id              UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id       UUID    NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   menu_item_id    UUID    NOT NULL REFERENCES menu_items(id) ON DELETE CASCADE,
   name            TEXT    NOT NULL,
@@ -136,7 +136,7 @@ CREATE TRIGGER menu_option_groups_updated_at BEFORE UPDATE ON menu_option_groups
 -- ─── MENU OPTIONS ────────────────────────────────────────────
 -- Individual selectable options within a group, e.g. "Small", "Medium", "Large".
 CREATE TABLE menu_options (
-  id                UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id         UUID          NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   option_group_id   UUID          NOT NULL REFERENCES menu_option_groups(id) ON DELETE CASCADE,
   name              TEXT          NOT NULL,
@@ -151,7 +151,7 @@ CREATE TRIGGER menu_options_updated_at BEFORE UPDATE ON menu_options
 
 -- ─── FAQS ────────────────────────────────────────────────────
 CREATE TABLE faqs (
-  id          UUID    PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id          UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id   UUID    NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   question    TEXT    NOT NULL,
   answer      TEXT    NOT NULL,
@@ -166,7 +166,7 @@ CREATE TRIGGER faqs_updated_at BEFORE UPDATE ON faqs
 -- ─── CONVERSATIONS ───────────────────────────────────────────
 -- One row per end-customer ↔ channel session.
 CREATE TABLE conversations (
-  id              UUID    PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id              UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id       UUID    NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   channel_type    TEXT    NOT NULL CHECK (channel_type IN ('whatsapp','sms','telegram')),
   external_id     TEXT    NOT NULL,   -- phone number (E.164) or Telegram chat_id
@@ -184,7 +184,7 @@ CREATE TRIGGER conversations_updated_at BEFORE UPDATE ON conversations
 
 -- ─── MESSAGES ────────────────────────────────────────────────
 CREATE TABLE messages (
-  id                  UUID    PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                  UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id           UUID    NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   conversation_id     UUID    NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
   role                TEXT    NOT NULL CHECK (role IN ('user','assistant','system')),
@@ -199,7 +199,7 @@ CREATE INDEX messages_created_at_idx ON messages(conversation_id, created_at);
 
 -- ─── ORDERS ──────────────────────────────────────────────────
 CREATE TABLE orders (
-  id                        UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                        UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id                 UUID          NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   conversation_id           UUID          REFERENCES conversations(id) ON DELETE SET NULL,
   order_number              TEXT          NOT NULL,  -- e.g. "#042" — generated per tenant
@@ -223,7 +223,7 @@ CREATE TRIGGER orders_updated_at BEFORE UPDATE ON orders
 
 -- ─── ORDER ITEMS ─────────────────────────────────────────────
 CREATE TABLE order_items (
-  id              UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id              UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id       UUID          NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   order_id        UUID          NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   menu_item_id    UUID          REFERENCES menu_items(id) ON DELETE SET NULL,
@@ -237,7 +237,7 @@ CREATE TABLE order_items (
 
 -- ─── ORDER ITEM OPTIONS ──────────────────────────────────────
 CREATE TABLE order_item_options (
-  id              UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id              UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id       UUID          NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   order_item_id   UUID          NOT NULL REFERENCES order_items(id) ON DELETE CASCADE,
   menu_option_id  UUID          REFERENCES menu_options(id) ON DELETE SET NULL,
@@ -248,7 +248,7 @@ CREATE TABLE order_item_options (
 
 -- ─── RESERVATIONS ────────────────────────────────────────────
 CREATE TABLE reservations (
-  id              UUID    PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id              UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id       UUID    NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   conversation_id UUID    REFERENCES conversations(id) ON DELETE SET NULL,
   customer_name   TEXT    NOT NULL,
