@@ -1,22 +1,32 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useState } from 'react'
 import { login } from './actions'
 import Link from 'next/link'
 
 export default function LoginPage() {
-  const [state, formAction, pending] = useActionState(login, null)
+  const [error, setError] = useState<string | null>(null)
+  const [pending, setPending] = useState(false)
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setError(null)
+    setPending(true)
+    const result = await login(null, new FormData(e.currentTarget))
+    if (result?.error) setError(result.error)
+    setPending(false)
+  }
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb' }}>
       <div style={{ background: '#fff', padding: '2rem', borderRadius: '8px', boxShadow: '0 1px 4px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px' }}>
         <h1 style={{ marginBottom: '1.5rem', fontSize: '1.5rem', fontWeight: 700 }}>Sign in to PizzaBot</h1>
 
-        {state?.error && (
-          <p style={{ color: '#dc2626', marginBottom: '1rem', fontSize: '0.875rem' }}>{state.error}</p>
+        {error && (
+          <p style={{ color: '#dc2626', marginBottom: '1rem', fontSize: '0.875rem' }}>{error}</p>
         )}
 
-        <form action={formAction} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
             <label htmlFor="email" style={{ fontSize: '0.875rem', fontWeight: 500 }}>Email</label>
             <input
